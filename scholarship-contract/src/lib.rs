@@ -16,7 +16,9 @@ use merkle::{MerkleHash, MerklePath, verify_path};
 static ALLOC: wee_alloc::WeeAlloc = wee_alloc::WeeAlloc::INIT;
 
 const SCHOLARSHIP_THRESHOLD: u64 = 90;
-const MAX_GAS: u64 = 1_000_000_000_000;
+const SCHOLARSHIP_AMOUNT: u128 = 10 * NEAR_BASE;
+const NEAR_BASE: u128 = 1_000_000_000_000_000_000_000_000;
+const MAX_GAS: u64 = 1_000_000_000_000_000_000;
 
 type BlockIndex = u64;
 type Score = u64;
@@ -43,6 +45,7 @@ pub trait ExtScoreContract {
 #[ext_contract(ext)]
 pub trait ExtContract {
     fn check_scholarship_result(&mut self);
+    fn grant_scholarship(&mut self, name: String);
 }
 
 
@@ -55,46 +58,38 @@ impl ScholarshipContract {
     }
 
     pub fn scholarship(&mut self, name: String, block_index: BlockIndex) -> Promise {
-        ext_score_contract::prove_score(name, block_index, &"score-contract".to_string(), 0, MAX_GAS).then(
+        ext_score_contract::prove_score(name.clone(), block_index, &"score-contract".to_string(), 0, MAX_GAS).then(
             ext::check_scholarship_result(&env::current_account_id(), 0, MAX_GAS)
+        ).then(
+            ext::grant_scholarship(name, &env::current_account_id(), 0, MAX_GAS)
         )
     }
 
     #[callback_args(proof)]
-    pub fn check_scholarship_result(&mut self, proof: Option<ScoreWithProof>) -> String {
+    pub fn check_scholarship_result(&mut self, proof: Option<ScoreWithProof>) -> Result<bool, String> {
         if let Some(proof) = proof {
             if let Some(root) = self.state_roots.get(&proof.block_index) {
                 if Self::verify_proof(root, &proof) {
-                    if proof.score >= SCHOLARSHIP_THRESHOLD {
-                        return "Scholarship granted".to_string();
-                    } else {
-                        return "Score not high enough".to_string();
-                    }
+                    return Ok(proof.score >= SCHOLARSHIP_THRESHOLD);
                 } else {
-                    return "Score proof verification failed".to_string();
+                    return Err("Score proof verification failed".to_string());
                 }
             } else {
                 let keys: Vec<_> = self.state_roots.keys().collect();
-                return format!("root doesn't exist, proof {:?}, state_roots: {:?}", proof, keys);
+                return Err(format!("root doesn't exist, proof {:?}, state_roots: {:?}", proof, keys));
             }
         }
-        "Proof is none".to_string()
+        Err("Proof doesn't exist".to_string())
+    }
+
+    #[callback_args(check_result)]
+    pub fn grant_scholarship(&mut self, name: String, check_result: Result<bool, String>) {
+        if let Ok(true) = check_result {
+            Promise::new(name).transfer(SCHOLARSHIP_AMOUNT);
+        }
     }
 
     fn verify_proof(root: MerkleHash, proof: &ScoreWithProof) -> bool {
         verify_path(root, &proof.proof, &((proof.name.clone(), proof.block_index), proof.score))
     }
-
-    //pub fn simple_call(&mut self, account_id: String, message: String) {
-    //    ext_status_message::set_status(message, &account_id, 0, 1_000_000);
-    //}
-    //pub fn complex_call(&mut self, account_id: String, message: String) -> Promise {
-    //    // 1) call status_message to record a message from the signer.
-    //    // 2) call status_message to retrieve the message of the signer.
-    //    // 3) return that message as its own result.
-    //    // Note, for a contract to simply call another contract (1) is sufficient.
-    //    ext_status_message::set_status(message, &account_id, 0, 1_000_000).then(
-    //        ext_status_message::get_status(env::signer_account_id(), &account_id, 0, 1_000_000),
-    //    )
-    //}
 }

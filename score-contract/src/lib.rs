@@ -83,19 +83,6 @@ impl ScoreContract {
             })
         })
     }
-
-    //pub fn simple_call(&mut self, account_id: String, message: String) {
-    //    ext_status_message::set_status(message, &account_id, 0, 1_000_000);
-    //}
-    //pub fn complex_call(&mut self, account_id: String, message: String) -> Promise {
-    //    // 1) call status_message to record a message from the signer.
-    //    // 2) call status_message to retrieve the message of the signer.
-    //    // 3) return that message as its own result.
-    //    // Note, for a contract to simply call another contract (1) is sufficient.
-    //    ext_status_message::set_status(message, &account_id, 0, 1_000_000).then(
-    //        ext_status_message::get_status(env::signer_account_id(), &account_id, 0, 1_000_000),
-    //    )
-    //}
 }
 
 #[cfg(not(target_arch = "wasm32"))]
